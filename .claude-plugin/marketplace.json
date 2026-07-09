@@ -1,0 +1,15 @@
+{
+  "name": "verboo-vision-fallback",
+  "owner": {
+    "name": "Natan Pimentel"
+  },
+  "plugins": [
+    {
+      "name": "verboo-vision-fallback",
+      "description": "Fallback de visão para modelos sem suporte a imagem.",
+      "version": "0.2.1",
+      "source": "./",
+      "strict": true
+    }
+  ]
+}

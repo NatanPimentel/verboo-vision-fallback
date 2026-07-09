@@ -27,21 +27,36 @@ Se todos os modelos falharem, o hook libera o turno e instrui o modelo principal
 
 ## Instalação
 
-Clone o repositório no diretório de plugins:
+Adicione o repositório como marketplace:
 
 ```bash
-git clone https://github.com/NatanPimentel/verboo-vision-fallback.git ~/.verboo/plugins/verboo-vision-fallback
+verboo plugin marketplace add NatanPimentel/verboo-vision-fallback
 ```
 
-Ative o plugin em `~/.verboo/settings.json`:
+Instale o plugin qualificado no escopo global:
+
+```bash
+verboo plugin install verboo-vision-fallback@verboo-vision-fallback --scope user
+```
+
+O instalador ativa o identificador qualificado em `~/.verboo/settings.json`:
 
 ```json
 {
   "enabledPlugins": {
-    "verboo-vision-fallback": true
+    "verboo-vision-fallback@verboo-vision-fallback": true
   }
 }
 ```
+
+Confirme a instalação ativa:
+
+```bash
+verboo plugin list --json
+```
+
+O diagnóstico deve mostrar `verboo-vision-fallback@verboo-vision-fallback` com
+`enabled: true`, versão `0.2.1` e nenhuma entrada em `errors`.
 
 Reinicie o Verboo Code após instalar ou atualizar o plugin.
 
