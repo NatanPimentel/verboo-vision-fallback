@@ -6,11 +6,13 @@
 #   describe-image.sh <caminho-ou-nome-da-imagem> [question...]
 #
 # Env vars (opcionais):
-#   VISION_MODEL     - modelo com visao (default: ultra/kimi-k2.7-code)
-#   VISION_BASE_URL  - endpoint do router Verboo (default: https://code.verboo.ai/router/v1)
-#   VISION_API_KEY   - chave da API
+#   VISION_MODEL            - modelo com visao principal (default: ultra/kimi-k2.7)
+#   VISION_FALLBACK_MODELS  - lista de fallbacks separados por espaco
+#                            (default: "ultra/qwen3.6-27b ultra/glm-5.2")
+#   VISION_BASE_URL         - endpoint do router Verboo (default: https://code.verboo.ai/router/v1)
+#   VISION_API_KEY          - chave da API
 
-set -euo pipefail
+set -uo pipefail
 
 if [ "$#" -lt 1 ]; then
   echo "ERRO: Uso: describe-image.sh <caminho-ou-nome-da-imagem> [question...]" >&2
@@ -25,8 +27,10 @@ if [ "$#" -gt 0 ]; then
 fi
 
 VISION_MODEL="${VISION_MODEL:-ultra/kimi-k2.7}"
-# Fallback se o modelo principal falhar (ex: 404 ou erro)
-VISION_FALLBACK_MODEL="${VISION_FALLBACK_MODEL:-ultra/qwen3.6-27b}"
+# Cadeia de fallbacks: se o modelo principal falhar (404, 5xx, erro de rede),
+# tenta cada um na ordem. Separar com espacos.
+# Ordem padrao: kimi-k2.7 -> qwen3.6-27b -> glm-5.2
+VISION_FALLBACK_MODELS="${VISION_FALLBACK_MODELS:-ultra/qwen3.6-27b ultra/glm-5.2}"
 VISION_BASE_URL="${VISION_BASE_URL:-https://code.verboo.ai/router/v1}"
 
 # Tenta obter a API key de varias fontes
@@ -172,37 +176,39 @@ process.stdin.on('end', () => {
     --data-binary @- 2>&1
 }
 
-# Remove o prefixo "ultra/" do model ID para a API
-MODEL_ID="${VISION_MODEL#ultra/}"
-FALLBACK_ID="${VISION_FALLBACK_MODEL#ultra/}"
+# Monta a lista de modelos a tentar, na ordem: principal + fallbacks
+# (remove prefixo ultra/, duplicatas e vazios)
+ALL_MODELS=$(echo "$MODEL_ID $VISION_FALLBACK_MODELS" | tr ' ' '\n' | sed 's/^ultra\///' | awk 'NF' | awk '!seen[$0]++')
 
-# Faz a chamada a API (envia body via stdin pra evitar estouro de argument list)
-RESPONSE=$(call_vision_api "$MODEL_ID" "$BODY")
-CURL_EXIT=$?
+HTTP_CODE=""
+BODY_RESPONSE=""
+SUCCESS=0
 
-if [ "$CURL_EXIT" -ne 0 ]; then
-  echo "ERRO: curl falhou com exit code $CURL_EXIT" >&2
-  echo "$RESPONSE" >&2
-  exit 1
-fi
+for TRY_MODEL in $ALL_MODELS; do
+  RESPONSE=$(call_vision_api "$TRY_MODEL" "$BODY") || CURL_EXIT=$? || CURL_EXIT=1
+  CURL_EXIT=${CURL_EXIT:-0}
 
-# Separa body e status code
-HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-BODY_RESPONSE=$(echo "$RESPONSE" | sed '$d')
-
-# Se o modelo principal falhar com 404, tenta o fallback
-if [ "$HTTP_CODE" = "404" ] && [ -n "$FALLBACK_ID" ] && [ "$FALLBACK_ID" != "$MODEL_ID" ]; then
-  RESPONSE=$(call_vision_api "$FALLBACK_ID" "$BODY")
-  CURL_EXIT=$?
-  if [ "$CURL_EXIT" -eq 0 ]; then
-    HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-    BODY_RESPONSE=$(echo "$RESPONSE" | sed '$d')
-    MODEL_ID="$FALLBACK_ID"
+  if [ "$CURL_EXIT" -ne 0 ]; then
+    # Erro de rede/conexao: tenta proximo modelo
+    echo "AVISO: curl falhou para $TRY_MODEL (exit $CURL_EXIT), tentando proximo..." >&2
+    continue
   fi
-fi
 
-if [ "$HTTP_CODE" != "200" ]; then
-  echo "ERRO: API de visao retornou HTTP $HTTP_CODE" >&2
+  HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+  BODY_RESPONSE=$(echo "$RESPONSE" | sed '$d')
+
+  if [ "$HTTP_CODE" = "200" ]; then
+    MODEL_ID="$TRY_MODEL"
+    SUCCESS=1
+    break
+  fi
+
+  # Erro HTTP (404, 5xx, etc.): tenta proximo modelo
+  echo "AVISO: modelo $TRY_MODEL retornou HTTP $HTTP_CODE, tentando proximo..." >&2
+done
+
+if [ "$SUCCESS" -ne 1 ]; then
+  echo "ERRO: Todos os modelos de visao falharam. Ultimo HTTP: $HTTP_CODE" >&2
   echo "$BODY_RESPONSE" >&2
   exit 1
 fi
@@ -222,6 +228,6 @@ process.stdin.on('end', () => {
 });
 ")
 
-echo "[Descricao da imagem $(basename "$IMAGE_PATH") usando $VISION_MODEL]:"
+echo "[Descricao da imagem $(basename "$IMAGE_PATH") usando ultra/$MODEL_ID]:"
 echo ""
 echo "$DESCRIPTION"

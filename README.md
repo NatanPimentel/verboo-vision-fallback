@@ -1,25 +1,27 @@
 # Verboo Vision Fallback
 
-Plugin for [Verboo Code](https://github.com/verbeux-ai/code) (a fork of Claude Code) that adds **automatic vision fallback** for text-only models.
+Plugin para o [Verboo Code](https://github.com/verbeux-ai/code) (um fork do Claude Code) que adiciona **fallback automático de visão** para modelos de texto.
 
-When the user sends an image and the active model doesn't support vision (e.g., `glm-5.2`, `deepseek-v4-flash`, `deepseek-v4-pro`, `mimo-v2.5-pro`, `kimi-k2.7-code`), this plugin:
+Quando o usuário envia uma imagem e o modelo ativo não suporta visão (ex: `glm-5.2`, `deepseek-v4-flash`, `deepseek-v4-pro`, `mimo-v2.5-pro`, `kimi-k2.7-code`), este plugin:
 
-1. Detects the image in the user prompt (via `UserPromptSubmit` hook)
-2. Injects context instructing the model to invoke the `/describe-image` skill
-3. The skill runs a bash script that calls a vision-capable model (`kimi-k2.7` by default, with `qwen3.6-27b` as fallback) via the Verboo router API
-4. The textual description is returned to the main model, which can use it to respond
+1. Detecta a imagem no prompt do usuário (via hook `UserPromptSubmit`)
+2. Injeta contexto instruindo o modelo a invocar a skill `/describe-image`
+3. A skill roda um script bash que chama um modelo com visão (`kimi-k2.7` por padrão) via API do router Verboo
+4. A descrição textual retorna para o modelo principal, que pode usá-la na resposta
 
-## Install
+Se o modelo principal falhar (404, erro de rede, etc.), o plugin tenta automaticamente os modelos de fallback na ordem: `kimi-k2.7` → `qwen3.6-27b` → `glm-5.2`.
 
-### Option 1: Clone directly into the plugins directory
+## Instalação
+
+### Opção 1: Clonar diretamente no diretório de plugins
 
 ```bash
 git clone https://github.com/NatanPimentel/verboo-vision-fallback.git ~/.verboo/plugins/verboo-vision-fallback
 ```
 
-### Option 2: Add as a plugin marketplace
+### Opção 2: Adicionar como plugin
 
-Add to `~/.verboo/settings.json`:
+Adicione ao `~/.verboo/settings.json`:
 
 ```json
 {
@@ -29,93 +31,101 @@ Add to `~/.verboo/settings.json`:
 }
 ```
 
-Then restart Verboo Code.
+Depois reinicie o Verboo Code.
 
-## Configuration
+## Configuração
 
-The plugin works out of the box. The API key is read automatically from `opencode.json` (any of: project root, `~/.config/opencode/opencode.json`, or `~/.verboo/opencode.json`).
+O plugin funciona out of the box. A API key é lida automaticamente do `opencode.json` (em qualquer um destes: raiz do projeto, `~/.config/opencode/opencode.json`, ou `~/.verboo/opencode.json`).
 
-### Environment variables (optional)
+### Variáveis de ambiente (opcionais)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `VISION_MODEL` | `ultra/kimi-k2.7` | Vision-capable model ID |
-| `VISION_FALLBACK_MODEL` | `ultra/qwen3.6-27b` | Fallback model if primary returns 404 |
-| `VISION_BASE_URL` | `https://code.verboo.ai/router/v1` | Verboo router endpoint |
-| `VISION_API_KEY` | _(read from opencode.json)_ | API key for the vision model |
+| Variável | Default | Descrição |
+|----------|---------|-----------|
+| `VISION_MODEL` | `ultra/kimi-k2.7` | ID do modelo com visão principal |
+| `VISION_FALLBACK_MODELS` | `ultra/qwen3.6-27b ultra/glm-5.2` | Lista de fallbacks separados por espaço |
+| `VISION_BASE_URL` | `https://code.verboo.ai/router/v1` | Endpoint do router Verboo |
+| `VISION_API_KEY` | _(lido do opencode.json)_ | API key para o modelo de visão |
 
-## Usage
+## Uso
 
-Just send an image as you normally would. If the active model can't see it, the plugin will instruct it to call `/describe-image` automatically.
+Basta enviar uma imagem como faria normalmente. Se o modelo ativo não conseguir vê-la, o plugin vai instruí-lo a chamar `/describe-image` automaticamente.
 
-You can also invoke the skill manually:
+Você também pode invocar a skill manualmente:
 
 ```
 /describe-image screenshot.png
 /describe-image "C:\Users\Natan\Downloads\foto.jpg"
-/describe-image image.png with question: What text is visible in this image?
+/describe-image image.png with question: Qual texto está visível nesta imagem?
 ```
 
-## How it works
+## Como funciona
 
 ```
-User sends image
+Usuário envia imagem
     │
     ▼
-UserPromptSubmit hook (detect-image.sh)
-    │  Detects image in payload
-    │  Injects additionalContext: "use /describe-image"
+Hook UserPromptSubmit (detect-image.sh)
+    │  Detecta imagem no payload
+    │  Injeta additionalContext: "use /describe-image"
     ▼
-Main model (e.g., glm-5.2)
-    │  Receives only filename, calls /describe-image skill
+Modelo principal (ex: glm-5.2)
+    │  Recebe apenas o nome do arquivo, chama a skill /describe-image
     ▼
 describe-image.sh
-    │  Resolves file path (Downloads, Pictures, Desktop, temp, cwd)
-    │  Reads image as base64
-    │  Calls Verboo router API with kimi-k2.7
-    │  (falls back to qwen3.6-27b on 404)
+    │  Resolve o caminho do arquivo (Downloads, Pictures, Desktop, temp, cwd)
+    │  Lê a imagem como base64
+    │  Chama a API do router Verboo com kimi-k2.7
+    │  ┌──────────────────────────────────────────────────────┐
+    │  │  Cadeia de fallback:                                  │
+    │  │  1. kimi-k2.7 (principal)                             │
+    │  │     └─ se falhar (404/5xx/rede) → tenta próximo       │
+    │  │  2. qwen3.6-27b (fallback 1)                          │
+    │  │     └─ se falhar → tenta próximo                      │
+    │  │  3. glm-5.2 (fallback 2)                              │
+    │  └──────────────────────────────────────────────────────┘
     ▼
-Textual description returned to main model
+Descrição textual retorna para o modelo principal
     │
     ▼
-Main model responds to user with image context
+Modelo principal responde ao usuário com contexto da imagem
 ```
 
-## Requirements
+## Requisitos
 
-- [Verboo Code](https://github.com/verbeux-ai/code) CLI (or Claude Code)
-- `bash`, `curl`, `base64`, `node`, `file` commands available in PATH
-- A Verboo account with access to vision models (`kimi-k2.7` or `qwen3.6-27b`)
+- [Verboo Code](https://github.com/verbeux-ai/code) CLI (ou Claude Code)
+- Comandos `bash`, `curl`, `base64`, `node`, `file` disponíveis no PATH
+- Uma conta Verboo com acesso a modelos de visão (`kimi-k2.7`, `qwen3.6-27b` ou `glm-5.2`)
 
-## Plugin structure
+## Estrutura do plugin
 
 ```
 verboo-vision-fallback/
 ├── .claude-plugin/
-│   └── plugin.json              # Plugin manifest
+│   └── plugin.json              # Manifesto do plugin
 ├── hooks/
-│   └── hooks.json               # UserPromptSubmit hook config
+│   └── hooks.json               # Configuração do hook UserPromptSubmit
 ├── scripts/
-│   ├── detect-image.sh          # Hook script: detects images in prompts
-│   └── describe-image.sh        # Skill script: calls vision API
+│   ├── detect-image.sh          # Script do hook: detecta imagens nos prompts
+│   └── describe-image.sh        # Script da skill: chama a API de visão
 └── skills/
     └── describe-image/
-        └── SKILL.md             # Skill definition
+        └── SKILL.md             # Definição da skill
 ```
 
-## Supported vision models (Verboo)
+## Modelos de visão suportados (Verboo)
 
-Tested and confirmed working:
+Testados e confirmados funcionando:
 
-| Model ID | Context | Notes |
-|----------|---------|-------|
-| `ultra/kimi-k2.7` | 1049K | Default — fast, detailed descriptions |
-| `ultra/qwen3.6-27b` | 262K | Fallback |
+| ID do modelo | Contexto | Notas |
+|--------------|----------|-------|
+| `ultra/kimi-k2.7` | 1049K | Padrão — rápido, descrições detalhadas |
+| `ultra/qwen3.6-27b` | 262K | Fallback 1 |
+| `ultra/glm-5.2` | 524K | Fallback 2 |
 
-## License
+## Licença
 
-MIT — see [LICENSE](LICENSE).
+MIT — veja [LICENSE](LICENSE).
 
-## Acknowledgments
+## Agradecimentos
 
-Inspired by [opencode-see-image](https://github.com/alfaoz/opencode-see-image) by alfaoz, adapted for Verboo Code / Claude Code plugin system.
+Inspirado no [opencode-see-image](https://github.com/alfaoz/opencode-see-image) do alfaoz, adaptado para o sistema de plugins do Verboo Code / Claude Code.
