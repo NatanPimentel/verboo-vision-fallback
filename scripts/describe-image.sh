@@ -8,7 +8,7 @@
 # Env vars (opcionais):
 #   VISION_MODEL            - modelo com visao principal (default: ultra/kimi-k2.7)
 #   VISION_FALLBACK_MODELS  - lista de fallbacks separados por espaco
-#                            (default: "ultra/qwen3.6-27b ultra/glm-5.2")
+#                            (default: "ultra/qwen3.6-27b")
 #   VISION_BASE_URL         - endpoint do router Verboo (default: https://code.verboo.ai/router/v1)
 #   VISION_API_KEY          - chave da API
 
@@ -29,8 +29,9 @@ fi
 VISION_MODEL="${VISION_MODEL:-ultra/kimi-k2.7}"
 # Cadeia de fallbacks: se o modelo principal falhar (404, 5xx, erro de rede),
 # tenta cada um na ordem. Separar com espacos.
-# Ordem padrao: kimi-k2.7 -> qwen3.6-27b -> glm-5.2
-VISION_FALLBACK_MODELS="${VISION_FALLBACK_MODELS:-ultra/qwen3.6-27b ultra/glm-5.2}"
+# Ordem padrao: kimi-k2.7 -> qwen3.6-27b
+# (apenas kimi-k2.7 e qwen3.6-27b suportam visao no Verboo)
+VISION_FALLBACK_MODELS="${VISION_FALLBACK_MODELS:-ultra/qwen3.6-27b}"
 VISION_BASE_URL="${VISION_BASE_URL:-https://code.verboo.ai/router/v1}"
 
 # Tenta obter a API key de varias fontes

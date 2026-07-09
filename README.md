@@ -9,7 +9,7 @@ Quando o usuário envia uma imagem e o modelo ativo não suporta visão (ex: `gl
 3. A skill roda um script bash que chama um modelo com visão (`kimi-k2.7` por padrão) via API do router Verboo
 4. A descrição textual retorna para o modelo principal, que pode usá-la na resposta
 
-Se o modelo principal falhar (404, erro de rede, etc.), o plugin tenta automaticamente os modelos de fallback na ordem: `kimi-k2.7` → `qwen3.6-27b` → `glm-5.2`.
+Se o modelo principal falhar (404, erro de rede, etc.), o plugin tenta automaticamente o modelo de fallback: `kimi-k2.7` → `qwen3.6-27b`.
 
 ## Instalação
 
@@ -42,7 +42,7 @@ O plugin funciona out of the box. A API key é lida automaticamente do `opencode
 | Variável | Default | Descrição |
 |----------|---------|-----------|
 | `VISION_MODEL` | `ultra/kimi-k2.7` | ID do modelo com visão principal |
-| `VISION_FALLBACK_MODELS` | `ultra/qwen3.6-27b ultra/glm-5.2` | Lista de fallbacks separados por espaço |
+| `VISION_FALLBACK_MODELS` | `ultra/qwen3.6-27b` | Lista de fallbacks separados por espaço |
 | `VISION_BASE_URL` | `https://code.verboo.ai/router/v1` | Endpoint do router Verboo |
 | `VISION_API_KEY` | _(lido do opencode.json)_ | API key para o modelo de visão |
 
@@ -79,9 +79,7 @@ describe-image.sh
     │  │  Cadeia de fallback:                                  │
     │  │  1. kimi-k2.7 (principal)                             │
     │  │     └─ se falhar (404/5xx/rede) → tenta próximo       │
-    │  │  2. qwen3.6-27b (fallback 1)                          │
-    │  │     └─ se falhar → tenta próximo                      │
-    │  │  3. glm-5.2 (fallback 2)                              │
+    │  │  2. qwen3.6-27b (fallback)                            │
     │  └──────────────────────────────────────────────────────┘
     ▼
 Descrição textual retorna para o modelo principal
@@ -94,7 +92,7 @@ Modelo principal responde ao usuário com contexto da imagem
 
 - [Verboo Code](https://github.com/verbeux-ai/code) CLI (ou Claude Code)
 - Comandos `bash`, `curl`, `base64`, `node`, `file` disponíveis no PATH
-- Uma conta Verboo com acesso a modelos de visão (`kimi-k2.7`, `qwen3.6-27b` ou `glm-5.2`)
+- Uma conta Verboo com acesso a modelos de visão (`kimi-k2.7` ou `qwen3.6-27b`)
 
 ## Estrutura do plugin
 
@@ -119,8 +117,9 @@ Testados e confirmados funcionando:
 | ID do modelo | Contexto | Notas |
 |--------------|----------|-------|
 | `ultra/kimi-k2.7` | 1049K | Padrão — rápido, descrições detalhadas |
-| `ultra/qwen3.6-27b` | 262K | Fallback 1 |
-| `ultra/glm-5.2` | 524K | Fallback 2 |
+| `ultra/qwen3.6-27b` | 262K | Fallback |
+
+> **Nota:** Apenas `kimi-k2.7` e `qwen3.6-27b` suportam visão no Verboo. Outros modelos como `glm-5.2`, `deepseek-v4-flash`, `deepseek-v4-pro`, `mimo-v2.5-pro` e `kimi-k2.7-code` não suportam imagem — por isso este plugin existe.
 
 ## Licença
 

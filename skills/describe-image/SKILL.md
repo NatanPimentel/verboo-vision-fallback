@@ -1,6 +1,6 @@
 ---
 name: describe-image
-description: Use PROATIVAMENTE quando o usuário envia uma imagem e o modelo atual não consegue vê-la diretamente. Passe o caminho ou nome do arquivo da imagem. A imagem é processada por um modelo com visão (kimi-k2.7 por padrão, com fallback para qwen3.6-27b e glm-5.2) e a descrição textual retorna para o modelo principal usar na resposta.
+description: Use PROATIVAMENTE quando o usuário envia uma imagem e o modelo atual não consegue vê-la diretamente. Passe o caminho ou nome do arquivo da imagem. A imagem é processada por um modelo com visão (kimi-k2.7 por padrão, com fallback para qwen3.6-27b) e a descrição textual retorna para o modelo principal usar na resposta.
 ---
 
 # /describe-image
@@ -27,13 +27,13 @@ Exemplos:
 1. Resolve o caminho do arquivo da imagem (tenta o caminho exato, depois Downloads, Pictures, Desktop, temp, cwd).
 2. Lê a imagem como base64.
 3. Chama a API do router Verboo com um modelo com visão (padrão: `ultra/kimi-k2.7`).
-4. Se o modelo principal falhar (404, erro de rede), tenta os fallbacks na ordem: `qwen3.6-27b` → `glm-5.2`.
+4. Se o modelo principal falhar (404, erro de rede), tenta o fallback: `qwen3.6-27b`.
 5. Retorna uma descrição textual detalhada da imagem.
 
 ## Configuração (variáveis de ambiente)
 
 - `VISION_MODEL` — ID do modelo com visão principal (padrão: `ultra/kimi-k2.7`)
-- `VISION_FALLBACK_MODELS` — lista de fallbacks separados por espaço (padrão: `ultra/qwen3.6-27b ultra/glm-5.2`)
+- `VISION_FALLBACK_MODELS` — lista de fallbacks separados por espaço (padrão: `ultra/qwen3.6-27b`)
 - `VISION_BASE_URL` — endpoint do router Verboo (padrão: `https://code.verboo.ai/router/v1`)
 - `VISION_API_KEY` — API key para o modelo de visão. Se não definida, a skill tenta ler do config do Verboo CLI.
 
