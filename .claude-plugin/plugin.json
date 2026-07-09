@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "verboo-vision-fallback",
+  "displayName": "Verboo Vision Fallback",
+  "version": "0.1.0",
+  "description": "Fallback de visao para modelos sem suporte a imagem. Detecta imagens anexadas e instrui o modelo a usar a skill /describe-image, que processa a imagem via um modelo com visao (kimi-k2.7 por padrao, com fallback para qwen3.6-27b).",
+  "author": {
+    "name": "Natan Pimentel"
+  },
+  "license": "MIT",
+  "keywords": ["vision", "image", "fallback", "multimodal"],
+  "hooks": "./hooks/hooks.json"
+}
