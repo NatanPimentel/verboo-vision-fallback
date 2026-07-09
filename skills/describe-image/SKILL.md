@@ -1,53 +1,34 @@
 ---
 name: describe-image
-description: Use PROATIVAMENTE quando o usuário envia uma imagem e o modelo atual não consegue vê-la diretamente. Passe o caminho ou nome do arquivo da imagem. A imagem é processada por um modelo com visão (kimi-k2.7 por padrão, com fallback para qwen3.6-27b) e a descrição textual retorna para o modelo principal usar na resposta.
+description: Use quando o usuário pedir explicitamente uma nova análise manual da imagem ou quando o hook automático de visão do Verboo informar que não conseguiu descrever um anexo. Aceita caminho, nome de arquivo ou latest.
 ---
 
 # /describe-image
 
-Use esta skill quando o usuário envia uma imagem e o modelo atual não suporta visão diretamente (ex: `glm-5.2`, `deepseek-v4-flash`, `deepseek-v4-pro`, `mimo-v2.5-pro`, `kimi-k2.7-code`).
+O hook automático `UserPromptSubmit` normalmente descreve os anexos antes de o modelo principal responder. Use esta skill somente para uma nova tentativa manual ou quando o usuário pedir explicitamente outra análise.
 
-## Como invocar
+## Entrada
 
-```
-/describe-image <caminho-ou-nome-do-arquivo>
-/describe-image <caminho-ou-nome-do-arquivo> with question: <sua pergunta>
-```
+Aceite um destes formatos:
 
-Exemplos:
-
-```
-/describe-image screenshot.png
-/describe-image "C:\Users\Natan\Downloads\foto.jpg"
-/describe-image image.png with question: Qual texto está visível nesta imagem?
+```text
+/describe-image latest
+/describe-image <file-path-or-name>
+/describe-image <file-path-or-name> with question: <question>
 ```
 
-## O que faz
+Se não houver um caminho utilizável, use `latest` para selecionar a imagem mais recente do cache do Verboo.
 
-1. Resolve o caminho do arquivo da imagem (tenta o caminho exato, depois Downloads, Pictures, Desktop, temp, cwd).
-2. Lê a imagem como base64.
-3. Chama a API do router Verboo com um modelo com visão (padrão: `ultra/kimi-k2.7`).
-4. Se o modelo principal falhar (404, erro de rede), tenta o fallback: `qwen3.6-27b`.
-5. Retorna uma descrição textual detalhada da imagem.
+## Execução
 
-## Configuração (variáveis de ambiente)
+Execute a CLI Node.js incluída no plugin com Bash:
 
-- `VISION_MODEL` — ID do modelo com visão principal (padrão: `ultra/kimi-k2.7`)
-- `VISION_FALLBACK_MODELS` — lista de fallbacks separados por espaço (padrão: `ultra/qwen3.6-27b`)
-- `VISION_BASE_URL` — endpoint do router Verboo (padrão: `https://code.verboo.ai/router/v1`)
-- `VISION_API_KEY` — API key para o modelo de visão. Se não definida, a skill tenta ler do config do Verboo CLI.
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/describe-image.mjs" "<file-path-or-latest>" "<question>"
+```
 
-## Implementação
+Passe a pergunta específica do usuário quando ela existir. Entregue a descrição retornada pelo script e não afirme ter inspecionado detalhes ausentes nessa saída.
 
-A skill roda o script em `${CLAUDE_PLUGIN_ROOT}/scripts/describe-image.sh` com o caminho do arquivo (e pergunta opcional) como argumentos. O script retorna a descrição textual.
+A CLI usa primeiro `ultra/kimi-k2.7` e depois `ultra/qwen3.6-27b` como fallback. Ela resolve caminhos explícitos, diretórios comuns do usuário e `latest` em `~/.verboo/image-cache`.
 
-## Quando usar
-
-- Usuário envia uma imagem e o modelo principal retorna erro como "Model does not support image inputs"
-- Usuário envia uma imagem e o modelo principal vê apenas o nome do arquivo (não o conteúdo)
-- Usuário pede explicitamente para descrever ou analisar uma imagem
-
-## Quando NÃO usar
-
-- O modelo principal já suporta visão (ex: `kimi-k2.7`, `qwen3.6-27b`)
-- Usuário não enviou nenhuma imagem
+Se o comando falhar, informe o erro resumido e peça ao usuário um caminho válido. Nunca exiba nem solicite a credencial configurada do router.

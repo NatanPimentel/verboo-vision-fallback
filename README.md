@@ -1,27 +1,39 @@
 # Verboo Vision Fallback
 
-Plugin para o [Verboo Code](https://github.com/verbeux-ai/code) (um fork do Claude Code) que adiciona **fallback automático de visão** para modelos de texto.
+Plugin para o [Verboo Code](https://github.com/verbeux-ai/code) que fornece visão a modelos de texto.
 
-Quando o usuário envia uma imagem e o modelo ativo não suporta visão (ex: `glm-5.2`, `deepseek-v4-flash`, `deepseek-v4-pro`, `mimo-v2.5-pro`, `kimi-k2.7-code`), este plugin:
+Quando o prompt contém um anexo como `[Image #1]`, o plugin localiza a imagem no cache da sessão, envia a imagem a um modelo com visão e injeta a descrição pronta no contexto do modelo principal. O fluxo não depende de o modelo principal decidir chamar uma skill.
 
-1. Detecta a imagem no prompt do usuário (via hook `UserPromptSubmit`)
-2. Injeta contexto instruindo o modelo a invocar a skill `/describe-image`
-3. A skill roda um script bash que chama um modelo com visão (`kimi-k2.7` por padrão) via API do router Verboo
-4. A descrição textual retorna para o modelo principal, que pode usá-la na resposta
+## Como funciona
 
-Se o modelo principal falhar (404, erro de rede, etc.), o plugin tenta automaticamente o modelo de fallback: `kimi-k2.7` → `qwen3.6-27b`.
+```text
+Usuário envia [Image #N]
+        |
+        v
+Hook UserPromptSubmit
+        |
+        +-- resolve ~/.verboo/image-cache/<session_id>/<N>.*
+        +-- chama kimi-k2.7 com timeout
+        +-- em caso de falha, chama qwen3.6-27b
+        |
+        v
+Descrição entra em additionalContext
+        |
+        v
+Modelo principal responde ao usuário
+```
+
+Se todos os modelos falharem, o hook libera o turno e instrui o modelo principal a avisar que não conseguiu analisar a imagem, sem inventar detalhes visuais.
 
 ## Instalação
 
-### Opção 1: Clonar diretamente no diretório de plugins
+Clone o repositório no diretório de plugins:
 
 ```bash
 git clone https://github.com/NatanPimentel/verboo-vision-fallback.git ~/.verboo/plugins/verboo-vision-fallback
 ```
 
-### Opção 2: Adicionar como plugin
-
-Adicione ao `~/.verboo/settings.json`:
+Ative o plugin em `~/.verboo/settings.json`:
 
 ```json
 {
@@ -31,100 +43,79 @@ Adicione ao `~/.verboo/settings.json`:
 }
 ```
 
-Depois reinicie o Verboo Code.
+Reinicie o Verboo Code após instalar ou atualizar o plugin.
+
+## Autenticação
+
+A credencial do router é resolvida nesta ordem:
+
+1. variável `VISION_API_KEY`;
+2. `opencode.json` do projeto atual;
+3. `~/.config/opencode/opencode.json`;
+4. `~/.verboo/opencode.json`.
+
+Nos arquivos `opencode.json`, o valor esperado fica em `provider.verboo.options.apiKey`. A credencial nunca é incluída na saída do hook.
 
 ## Configuração
 
-O plugin funciona out of the box. A API key é lida automaticamente do `opencode.json` (em qualquer um destes: raiz do projeto, `~/.config/opencode/opencode.json`, ou `~/.verboo/opencode.json`).
+| Variável | Padrão | Descrição |
+|---|---|---|
+| `VISION_MODEL` | `ultra/kimi-k2.7` | Modelo com visão principal |
+| `VISION_FALLBACK_MODELS` | `ultra/qwen3.6-27b` | Fallbacks separados por espaço ou vírgula |
+| `VISION_BASE_URL` | `https://code.verboo.ai/router/v1` | Endpoint compatível com OpenAI Chat Completions |
+| `VISION_API_KEY` | lida da configuração | Credencial do router Verboo |
+| `VISION_TIMEOUT_MS` | `20000` | Limite por modelo, em milissegundos |
+| `VISION_TOTAL_TIMEOUT_MS` | `42000` | Deadline interno de toda a cadeia, preservando margem para o hook |
+| `VISION_MAX_TOKENS` | `1024` | Limite da descrição visual |
+| `VERBOO_HOME` | `~/.verboo` | Diretório de dados do Verboo; útil para testes |
 
-### Variáveis de ambiente (opcionais)
-
-| Variável | Default | Descrição |
-|----------|---------|-----------|
-| `VISION_MODEL` | `ultra/kimi-k2.7` | ID do modelo com visão principal |
-| `VISION_FALLBACK_MODELS` | `ultra/qwen3.6-27b` | Lista de fallbacks separados por espaço |
-| `VISION_BASE_URL` | `https://code.verboo.ai/router/v1` | Endpoint do router Verboo |
-| `VISION_API_KEY` | _(lido do opencode.json)_ | API key para o modelo de visão |
+O hook tem limite externo de 45 segundos e deadline interno de 42 segundos. Com os padrões, Kimi pode usar até 20 segundos, Qwen pode usar até 20 segundos e ainda há margem para o hook devolver um aviso seguro.
 
 ## Uso
 
-Basta enviar uma imagem como faria normalmente. Se o modelo ativo não conseguir vê-la, o plugin vai instruí-lo a chamar `/describe-image` automaticamente.
+O uso normal é automático: anexe uma imagem e envie a pergunta ao modelo de texto ativo.
 
-Você também pode invocar a skill manualmente:
+A skill `/describe-image` continua disponível como recuperação manual:
 
-```
-/describe-image screenshot.png
+```text
+/describe-image latest
 /describe-image "C:\Users\Natan\Downloads\foto.jpg"
-/describe-image image.png with question: Qual texto está visível nesta imagem?
+/describe-image screenshot.png with question: Qual texto está visível?
 ```
 
-## Como funciona
+`latest` usa a imagem mais recente de `~/.verboo/image-cache`. Caminhos explícitos e nomes presentes no diretório atual, Downloads, Pictures, Pictures/Screenshots ou Desktop também são aceitos.
 
-```
-Usuário envia imagem
-    │
-    ▼
-Hook UserPromptSubmit (detect-image.sh)
-    │  Detecta imagem no payload
-    │  Injeta additionalContext: "use /describe-image"
-    ▼
-Modelo principal (ex: glm-5.2)
-    │  Recebe apenas o nome do arquivo, chama a skill /describe-image
-    ▼
-describe-image.sh
-    │  Resolve o caminho do arquivo (Downloads, Pictures, Desktop, temp, cwd)
-    │  Lê a imagem como base64
-    │  Chama a API do router Verboo com kimi-k2.7
-    │  ┌──────────────────────────────────────────────────────┐
-    │  │  Cadeia de fallback:                                  │
-    │  │  1. kimi-k2.7 (principal)                             │
-    │  │     └─ se falhar (404/5xx/rede) → tenta próximo       │
-    │  │  2. qwen3.6-27b (fallback)                            │
-    │  └──────────────────────────────────────────────────────┘
-    ▼
-Descrição textual retorna para o modelo principal
-    │
-    ▼
-Modelo principal responde ao usuário com contexto da imagem
+## Modelos confirmados
+
+| Modelo | Papel |
+|---|---|
+| `ultra/kimi-k2.7` | Principal |
+| `ultra/qwen3.6-27b` | Fallback |
+
+Modelos como `glm-5.2`, `deepseek-v4-flash`, `deepseek-v4-pro`, `mimo-v2.5-pro` e `kimi-k2.7-code` são o público-alvo do fallback porque não processam imagens diretamente.
+
+## Desenvolvimento
+
+Requer Node.js 22 ou superior, a mesma versão mínima exigida pelo Verboo Code.
+
+```bash
+npm test
 ```
 
-## Requisitos
+Os testes usam cache e servidor HTTP temporários; não consomem a API real.
 
-- [Verboo Code](https://github.com/verbeux-ai/code) CLI (ou Claude Code)
-- Comandos `bash`, `curl`, `base64`, `node`, `file` disponíveis no PATH
-- Uma conta Verboo com acesso a modelos de visão (`kimi-k2.7` ou `qwen3.6-27b`)
-
-## Estrutura do plugin
-
-```
+```text
 verboo-vision-fallback/
-├── .claude-plugin/
-│   └── plugin.json              # Manifesto do plugin
-├── hooks/
-│   └── hooks.json               # Configuração do hook UserPromptSubmit
+├── .claude-plugin/plugin.json
+├── hooks/hooks.json
 ├── scripts/
-│   ├── detect-image.sh          # Script do hook: detecta imagens nos prompts
-│   └── describe-image.sh        # Script da skill: chama a API de visão
-└── skills/
-    └── describe-image/
-        └── SKILL.md             # Definição da skill
+│   ├── image-hook.mjs
+│   ├── describe-image.mjs
+│   └── vision-client.mjs
+├── skills/describe-image/SKILL.md
+└── tests/
 ```
-
-## Modelos de visão suportados (Verboo)
-
-Testados e confirmados funcionando:
-
-| ID do modelo | Contexto | Notas |
-|--------------|----------|-------|
-| `ultra/kimi-k2.7` | 1049K | Padrão — rápido, descrições detalhadas |
-| `ultra/qwen3.6-27b` | 262K | Fallback |
-
-> **Nota:** Apenas `kimi-k2.7` e `qwen3.6-27b` suportam visão no Verboo. Outros modelos como `glm-5.2`, `deepseek-v4-flash`, `deepseek-v4-pro`, `mimo-v2.5-pro` e `kimi-k2.7-code` não suportam imagem — por isso este plugin existe.
 
 ## Licença
 
-MIT — veja [LICENSE](LICENSE).
-
-## Agradecimentos
-
-Inspirado no [opencode-see-image](https://github.com/alfaoz/opencode-see-image) do alfaoz, adaptado para o sistema de plugins do Verboo Code / Claude Code.
+MIT. Inspirado no [opencode-see-image](https://github.com/alfaoz/opencode-see-image), adaptado ao cache de sessões e aos hooks do Verboo Code.

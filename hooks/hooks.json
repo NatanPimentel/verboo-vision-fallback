@@ -5,7 +5,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/scripts/detect-image.sh"
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/image-hook.mjs\"",
+            "timeout": 45
           }
         ]
       }
