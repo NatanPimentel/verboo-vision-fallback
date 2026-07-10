@@ -1,10 +1,10 @@
 {
   "name": "verboo-vision-fallback",
-  "version": "0.2.1",
-  "description": "Fallback de visao para modelos sem suporte a imagem. Processa imagens automaticamente via kimi-k2.7, com fallback para qwen3.6-27b, e injeta a descricao no contexto do modelo principal.",
+  "version": "0.2.2",
+  "description": "Fallback de visão para modelos de texto no Verboo Code. Processa imagens automaticamente via qwen3.6-27b, com fallback para kimi-k2.7, e injeta a descrição no contexto do modelo principal. Requer registro manual do hook UserPromptSubmit em ~/.verboo/settings.json.",
   "author": {
     "name": "Natan Pimentel"
   },
   "license": "MIT",
-  "keywords": ["vision", "image", "fallback", "multimodal"]
+  "keywords": ["vision", "image", "fallback", "multimodal", "qwen", "kimi"]
 }

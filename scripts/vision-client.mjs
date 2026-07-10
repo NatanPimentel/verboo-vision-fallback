@@ -21,8 +21,8 @@ function normalizeModel(value) {
 }
 
 function configuredModels(env) {
-  const fallbacks = env.VISION_FALLBACK_MODELS ?? 'ultra/qwen3.6-27b'
-  return [env.VISION_MODEL || 'ultra/kimi-k2.7', ...fallbacks.split(/[\s,]+/)]
+  const fallbacks = env.VISION_FALLBACK_MODELS ?? 'ultra/kimi-k2.7'
+  return [env.VISION_MODEL || 'ultra/qwen3.6-27b', ...fallbacks.split(/[\s,]+/)]
     .filter(Boolean)
     .map(normalizeModel)
     .filter((model, index, all) => model && all.indexOf(model) === index)
@@ -80,7 +80,7 @@ export async function describeImages({
   verbooHome = env.VERBOO_HOME || join(homedir(), '.verboo'),
 }) {
   const startedAt = Date.now()
-  const totalTimeoutMs = positiveInteger(env.VISION_TOTAL_TIMEOUT_MS, 42_000)
+  const totalTimeoutMs = positiveInteger(env.VISION_TOTAL_TIMEOUT_MS, 60_000)
   const apiKey = await loadApiKey({ cwd, env, verbooHome })
   if (!apiKey) throw new Error('Credencial do router Verboo não encontrada.')
 
@@ -92,7 +92,7 @@ export async function describeImages({
     ...(await Promise.all(imagePaths.map(imageBlock))),
   ]
   const baseUrl = (env.VISION_BASE_URL || 'https://code.verboo.ai/router/v1').replace(/\/$/, '')
-  const timeoutMs = positiveInteger(env.VISION_TIMEOUT_MS, 20_000)
+  const timeoutMs = positiveInteger(env.VISION_TIMEOUT_MS, 30_000)
   const maxTokens = positiveInteger(env.VISION_MAX_TOKENS, 1024)
   const failures = []
 

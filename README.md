@@ -1,8 +1,8 @@
 # Verboo Vision Fallback
 
-Plugin para o [Verboo Code](https://github.com/verbeux-ai/code) que fornece visão a modelos de texto.
+Plugin para o [Verboo Code](https://github.com/verbeux-ai/code) que dá visão a modelos de texto.
 
-Quando o prompt contém um anexo como `[Image #1]`, o plugin localiza a imagem no cache da sessão, envia a imagem a um modelo com visão e injeta a descrição pronta no contexto do modelo principal. O fluxo não depende de o modelo principal decidir chamar uma skill.
+Quando o prompt contém um anexo como `[Image #1]`, o hook localiza a imagem no cache da sessão, envia a imagem a um modelo com visão e injeta a descrição pronta no contexto do modelo principal. O fluxo não depende de o modelo principal decidir chamar uma skill.
 
 ## Como funciona
 
@@ -10,11 +10,11 @@ Quando o prompt contém um anexo como `[Image #1]`, o plugin localiza a imagem n
 Usuário envia [Image #N]
         |
         v
-Hook UserPromptSubmit
+Hook UserPromptSubmit (registrado em ~/.verboo/settings.json)
         |
         +-- resolve ~/.verboo/image-cache/<session_id>/<N>.*
-        +-- chama kimi-k2.7 com timeout
-        +-- em caso de falha, chama qwen3.6-27b
+        +-- chama qwen3.6-27b com timeout
+        +-- em caso de falha, chama kimi-k2.7
         |
         v
 Descrição entra em additionalContext
@@ -27,19 +27,19 @@ Se todos os modelos falharem, o hook libera o turno e instrui o modelo principal
 
 ## Instalação
 
-Adicione o repositório como marketplace:
+### 1. Adicione o marketplace
 
 ```bash
 verboo plugin marketplace add NatanPimentel/verboo-vision-fallback
 ```
 
-Instale o plugin qualificado no escopo global:
+### 2. Instale o plugin
 
 ```bash
 verboo plugin install verboo-vision-fallback@verboo-vision-fallback --scope user
 ```
 
-O instalador ativa o identificador qualificado em `~/.verboo/settings.json`:
+Isso ativa o identificador qualificado em `~/.verboo/settings.json`:
 
 ```json
 {
@@ -49,16 +49,40 @@ O instalador ativa o identificador qualificado em `~/.verboo/settings.json`:
 }
 ```
 
-Confirme a instalação ativa:
+### 3. Registre o hook manualmente
 
-```bash
-verboo plugin list --json
+> **Importante:** o Verboo Code não carrega hooks automaticamente a partir do manifesto do plugin. Você precisa registrar o `UserPromptSubmit` diretamente em `~/.verboo/settings.json`.
+
+Abra `~/.verboo/settings.json` e adicione a seção `hooks`:
+
+```json
+{
+  "enabledPlugins": {
+    "verboo-vision-fallback@verboo-vision-fallback": true
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/image-hook.mjs\"",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}
 ```
 
-O diagnóstico deve mostrar `verboo-vision-fallback@verboo-vision-fallback` com
-`enabled: true`, versão `0.2.1` e nenhuma entrada em `errors`.
+A variável `${CLAUDE_PLUGIN_ROOT}` é resolvida pelo Verboo Code para o diretório de instalação do plugin.
 
-Reinicie o Verboo Code após instalar ou atualizar o plugin.
+### 4. Reinicie o Verboo Code
+
+```bash
+verboo
+```
 
 ## Autenticação
 
@@ -75,16 +99,16 @@ Nos arquivos `opencode.json`, o valor esperado fica em `provider.verboo.options.
 
 | Variável | Padrão | Descrição |
 |---|---|---|
-| `VISION_MODEL` | `ultra/kimi-k2.7` | Modelo com visão principal |
-| `VISION_FALLBACK_MODELS` | `ultra/qwen3.6-27b` | Fallbacks separados por espaço ou vírgula |
+| `VISION_MODEL` | `ultra/qwen3.6-27b` | Modelo com visão principal |
+| `VISION_FALLBACK_MODELS` | `ultra/kimi-k2.7` | Fallbacks separados por espaço ou vírgula |
 | `VISION_BASE_URL` | `https://code.verboo.ai/router/v1` | Endpoint compatível com OpenAI Chat Completions |
 | `VISION_API_KEY` | lida da configuração | Credencial do router Verboo |
-| `VISION_TIMEOUT_MS` | `20000` | Limite por modelo, em milissegundos |
-| `VISION_TOTAL_TIMEOUT_MS` | `42000` | Deadline interno de toda a cadeia, preservando margem para o hook |
+| `VISION_TIMEOUT_MS` | `30000` | Limite por modelo, em milissegundos |
+| `VISION_TOTAL_TIMEOUT_MS` | `60000` | Deadline interno de toda a cadeia |
 | `VISION_MAX_TOKENS` | `1024` | Limite da descrição visual |
 | `VERBOO_HOME` | `~/.verboo` | Diretório de dados do Verboo; útil para testes |
 
-O hook tem limite externo de 45 segundos e deadline interno de 42 segundos. Com os padrões, Kimi pode usar até 20 segundos, Qwen pode usar até 20 segundos e ainda há margem para o hook devolver um aviso seguro.
+O hook tem limite externo de 60 segundos (`timeout` em `settings.json`) e deadline interno de 60 segundos. Com os padrões, Qwen pode usar até 30 segundos, Kimi pode usar até 30 segundos e ainda há margem para o hook devolver um aviso seguro.
 
 ## Uso
 
@@ -104,8 +128,8 @@ A skill `/describe-image` continua disponível como recuperação manual:
 
 | Modelo | Papel |
 |---|---|
-| `ultra/kimi-k2.7` | Principal |
-| `ultra/qwen3.6-27b` | Fallback |
+| `ultra/qwen3.6-27b` | Principal (melhor OCR no momento) |
+| `ultra/kimi-k2.7` | Fallback |
 
 Modelos como `glm-5.2`, `deepseek-v4-flash`, `deepseek-v4-pro`, `mimo-v2.5-pro` e `kimi-k2.7-code` são o público-alvo do fallback porque não processam imagens diretamente.
 

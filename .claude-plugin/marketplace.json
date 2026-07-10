@@ -7,7 +7,7 @@
     {
       "name": "verboo-vision-fallback",
       "description": "Fallback de visão para modelos sem suporte a imagem.",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "source": "./",
       "strict": true
     }
