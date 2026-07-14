@@ -1,14 +1,23 @@
 {
   "name": "verboo-vision-fallback",
   "owner": {
-    "name": "Natan Pimentel"
+    "name": "Natan Pimentel",
+    "url": "https://github.com/NatanPimentel"
+  },
+  "metadata": {
+    "version": "0.3.0",
+    "description": "Fallback de visão para modelos sem suporte a imagem no Verboo Code 0.12.0+."
   },
   "plugins": [
     {
       "name": "verboo-vision-fallback",
-      "description": "Fallback de visão para modelos sem suporte a imagem.",
-      "version": "0.2.2",
+      "description": "Fallback de visão configurável para modelos sem suporte a imagem no Verboo Code 0.12.0+.",
+      "version": "0.3.0",
       "source": "./",
+      "category": "vision",
+      "homepage": "https://github.com/NatanPimentel/verboo-vision-fallback",
+      "repository": "https://github.com/NatanPimentel/verboo-vision-fallback",
+      "tags": ["vision", "image", "fallback", "multimodal", "openai-compatible"],
       "strict": true
     }
   ]

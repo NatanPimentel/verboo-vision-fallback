@@ -1,156 +1,178 @@
 # Verboo Vision Fallback
 
-Plugin para o [Verboo Code](https://github.com/verbeux-ai/code) que dá visão a modelos de texto.
+Plugin para o [Verboo Code](https://github.com/verbeux-ai/code) que fornece uma descrição visual a modelos de texto quando o prompt contém anexos como `[Image #1]`. O hook nativo encontra as imagens no cache da sessão, envia todas as imagens solicitadas em uma única chamada de visão e injeta a descrição como evidência visual não confiável para o modelo principal.
 
-Quando o prompt contém um anexo como `[Image #1]`, o hook localiza a imagem no cache da sessão, envia a imagem a um modelo com visão e injeta a descrição pronta no contexto do modelo principal. O fluxo não depende de o modelo principal decidir chamar uma skill.
+Requer Verboo Code **0.12.0 ou superior** e Node.js 22 ou superior.
 
-## Como funciona
+## Instalação limpa
 
-```text
-Usuário envia [Image #N]
-        |
-        v
-Hook UserPromptSubmit (registrado em ~/.verboo/settings.json)
-        |
-        +-- resolve ~/.verboo/image-cache/<session_id>/<N>.*
-        +-- chama qwen3.6-27b com timeout
-        +-- em caso de falha, chama kimi-k2.7
-        |
-        v
-Descrição entra em additionalContext
-        |
-        v
-Modelo principal responde ao usuário
-```
-
-Se todos os modelos falharem, o hook libera o turno e instrui o modelo principal a avisar que não conseguiu analisar a imagem, sem inventar detalhes visuais.
-
-## Instalação
-
-### 1. Adicione o marketplace
+Adicione o marketplace, instale o plugin no escopo desejado e reinicie o Verboo Code:
 
 ```bash
 verboo plugin marketplace add NatanPimentel/verboo-vision-fallback
-```
-
-### 2. Instale o plugin
-
-```bash
 verboo plugin install verboo-vision-fallback@verboo-vision-fallback --scope user
-```
-
-Isso ativa o identificador qualificado em `~/.verboo/settings.json`:
-
-```json
-{
-  "enabledPlugins": {
-    "verboo-vision-fallback@verboo-vision-fallback": true
-  }
-}
-```
-
-### 3. Registre o hook manualmente
-
-> **Importante:** o Verboo Code não carrega hooks automaticamente a partir do manifesto do plugin. Você precisa registrar o `UserPromptSubmit` diretamente em `~/.verboo/settings.json`.
-
-Abra `~/.verboo/settings.json` e adicione a seção `hooks`:
-
-```json
-{
-  "enabledPlugins": {
-    "verboo-vision-fallback@verboo-vision-fallback": true
-  },
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/image-hook.mjs\"",
-            "timeout": 60
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-A variável `${CLAUDE_PLUGIN_ROOT}` é resolvida pelo Verboo Code para o diretório de instalação do plugin.
-
-### 4. Reinicie o Verboo Code
-
-```bash
 verboo
 ```
 
-## Autenticação
-
-A credencial do router é resolvida nesta ordem:
-
-1. variável `VISION_API_KEY`;
-2. `opencode.json` do projeto atual;
-3. `~/.config/opencode/opencode.json`;
-4. `~/.verboo/opencode.json`.
-
-Nos arquivos `opencode.json`, o valor esperado fica em `provider.verboo.options.apiKey`. A credencial nunca é incluída na saída do hook.
+O Verboo Code 0.12.0 carrega automaticamente `hooks/hooks.json`. Não adicione `manifest.hooks` e não registre outro `UserPromptSubmit` para este plugin.
 
 ## Configuração
 
-| Variável | Padrão | Descrição |
-|---|---|---|
-| `VISION_MODEL` | `ultra/qwen3.6-27b` | Modelo com visão principal |
-| `VISION_FALLBACK_MODELS` | `ultra/kimi-k2.7` | Fallbacks separados por espaço ou vírgula |
-| `VISION_BASE_URL` | `https://code.verboo.ai/router/v1` | Endpoint compatível com OpenAI Chat Completions |
-| `VISION_API_KEY` | lida da configuração | Credencial do router Verboo |
-| `VISION_TIMEOUT_MS` | `30000` | Limite por modelo, em milissegundos |
-| `VISION_TOTAL_TIMEOUT_MS` | `60000` | Deadline interno de toda a cadeia |
-| `VISION_MAX_TOKENS` | `1024` | Limite da descrição visual |
-| `VERBOO_HOME` | `~/.verboo` | Diretório de dados do Verboo; útil para testes |
+Configure o plugin pela UI de configuração do Verboo Code. A opção `api_key` é marcada como `sensitive`: o host a mantém no armazenamento seguro dele e, ao executar o hook, a entrega somente pela variável `CLAUDE_PLUGIN_OPTION_API_KEY`. O plugin não lê OAuth interno do Verboo, keychain, Windows Credential Manager, `.credentials.json`, `opencode.json` nem qualquer arquivo interno de autenticação do CLI.
 
-O hook tem limite externo de 60 segundos (`timeout` em `settings.json`) e deadline interno de 60 segundos. Com os padrões, Qwen pode usar até 30 segundos, Kimi pode usar até 30 segundos e ainda há margem para o hook devolver um aviso seguro.
+`api_key` deve ser uma credencial **persistente** aceita pelo endpoint configurado. Não tente reutilizar nem extrair o login OAuth do Verboo. Se o router padrão não oferecer uma credencial desse tipo, configure um endpoint externo compatível com OpenAI e a chave emitida por esse endpoint.
 
-## Uso
+### Precedência
 
-O uso normal é automático: anexe uma imagem e envie a pergunta ao modelo de texto ativo.
+Para cada opção, a resolução em runtime é:
 
-A skill `/describe-image` continua disponível como recuperação manual:
+1. variável `VISION_*`;
+2. variável `CLAUDE_PLUGIN_OPTION_*` fornecida pelo host;
+3. default interno, somente quando ele for não secreto e seguro.
+
+| Opção | Variável de automação | Variável da UI | Default |
+|---|---|---|---|
+| `api_key` | `VISION_API_KEY` | `CLAUDE_PLUGIN_OPTION_API_KEY` | nenhum; exigida pela chamada autenticada |
+| `model` | `VISION_MODEL` | `CLAUDE_PLUGIN_OPTION_MODEL` | nenhum; obrigatória |
+| `fallback_models` | `VISION_FALLBACK_MODELS` | `CLAUDE_PLUGIN_OPTION_FALLBACK_MODELS` | vazio |
+| `base_url` | `VISION_BASE_URL` | `CLAUDE_PLUGIN_OPTION_BASE_URL` | `https://code.verboo.ai/router/v1` |
+| `timeout_ms` | `VISION_TIMEOUT_MS` | `CLAUDE_PLUGIN_OPTION_TIMEOUT_MS` | `30000` |
+| `total_timeout_ms` | `VISION_TOTAL_TIMEOUT_MS` | `CLAUDE_PLUGIN_OPTION_TOTAL_TIMEOUT_MS` | `55000` |
+| `max_tokens` | `VISION_MAX_TOKENS` | `CLAUDE_PLUGIN_OPTION_MAX_TOKENS` | `1024` |
+
+`base_url` aponta para a raiz de uma API OpenAI-compatible. O cliente usa `${base_url}/models` e `${base_url}/chat/completions`; fornecer uma URL já terminada em um desses caminhos também é aceito e normalizado somente como URL, nunca como ID de modelo.
+
+### Modelos
+
+`model` é obrigatório nesta release: nenhum ID de modelo vem embutido como default, pois a disponibilidade e o suporte visual precisam ser comprovados pelo endpoint configurado. `fallback_models` aceita IDs separados por espaços ou vírgulas e mantém a ordem configurada.
+
+Todos os IDs são valores opacos. O plugin envia exatamente cada valor configurado, preserva prefixos como `ultra/` e `early-adopters/`, remove apenas duplicatas posteriores sem reescrever o valor e não substitui silenciosamente um ID por outro.
+
+## Fluxo automático
 
 ```text
-/describe-image latest
-/describe-image "C:\Users\Natan\Downloads\foto.jpg"
-/describe-image screenshot.png with question: Qual texto está visível?
+Prompt com [Image #N]
+        |
+        v
+Hook nativo UserPromptSubmit
+        |
+        +-- resolve todas as imagens da sessão
+        +-- deduplica marcadores repetidos pela primeira ocorrência
+        +-- envia as imagens em uma única inferência
+        +-- tenta modelo principal e fallbacks na ordem configurada
+        |
+        v
+Descrição visual delimitada entra em additionalContext
+        |
+        v
+Modelo principal responde à pergunta original
 ```
 
-`latest` usa a imagem mais recente de `~/.verboo/image-cache`. Caminhos explícitos e nomes presentes no diretório atual, Downloads, Pictures, Pictures/Screenshots ou Desktop também são aceitos.
+Se não houver marcador de imagem, o hook permanece silencioso, sem stdout nem stderr. Se qualquer imagem solicitada estiver ausente, ele não faz análise parcial. Em falhas de cache, configuração, credencial, endpoint ou modelos, ele sai com código zero e devolve JSON válido com orientação para que o modelo principal não invente detalhes visuais.
 
-## Modelos confirmados
+## Cache e resolução de imagens
 
-| Modelo | Papel |
-|---|---|
-| `ultra/qwen3.6-27b` | Principal (melhor OCR no momento) |
-| `ultra/kimi-k2.7` | Fallback |
+A raiz de configuração é resolvida nesta ordem:
 
-Modelos como `glm-5.2`, `deepseek-v4-flash`, `deepseek-v4-pro`, `mimo-v2.5-pro` e `kimi-k2.7-code` são o público-alvo do fallback porque não processam imagens diretamente.
+1. `VERBOO_CONFIG_DIR`;
+2. `VERBOO_HOME`, apenas como alias legado e para testes;
+3. `~/.verboo`.
 
-## Desenvolvimento
+O cache automático é sempre resolvido em:
 
-Requer Node.js 22 ou superior, a mesma versão mínima exigida pelo Verboo Code.
+```text
+<config-root>/image-cache/<session_id>/<image-id>.<extensão>
+```
+
+O hook valida sessão e ID numérico, impede traversal, caminhos absolutos e escapes por symlink, verifica containment após `resolve` e `realpath`, e aceita somente arquivos regulares de MIME suportado. Arquivos removidos durante a leitura são tratados como uma falha aberta, sem derrubar o turno.
+
+## Uso manual
+
+O uso normal é automático. A CLI serve para uma nova tentativa explícita ou recuperação:
+
+```text
+node scripts/describe-image.mjs latest
+node scripts/describe-image.mjs "C:\\caminho\\para\\imagem.png"
+node scripts/describe-image.mjs screenshot.png "Qual texto está visível?"
+```
+
+Ela aceita um caminho explícito, um nome de arquivo resolvível ou `latest`, com pergunta opcional. A interface manual não aceita `[Image #N]`: sem um `session_id` confiável, esse marcador jamais seleciona silenciosamente a imagem mais recente.
+
+## Doctor
+
+Execute, a partir da raiz do plugin:
 
 ```bash
-npm test
+node scripts/describe-image.mjs doctor
 ```
 
-Os testes usam cache e servidor HTTP temporários; não consomem a API real.
+O doctor é explícito: realiza chamadas externas e pode consumir créditos. Ele valida a configuração sem revelar a chave, verifica a URL base, chama `GET /models`, confere o modelo principal e os fallbacks por correspondência exata e executa uma inferência visual mínima com o fixture local para cada ID configurado. Comparação case-insensitive só é usada para encontrar o ID canônico retornado pelo servidor; a chamada posterior continua enviando esse ID canônico.
+
+Os diagnósticos distinguem chave ausente, HTTP 401, HTTP 403, endpoint incompatível, JSON inválido, modelo ausente, modelo que rejeita imagens, erro de rede e timeout. O doctor nunca imprime credenciais, `Authorization`, data URLs, imagens em base64 nem corpos remotos brutos.
+
+## Limites e timeouts
+
+- O stdin do hook é limitado a 1 MiB e o payload precisa ter `hook_event_name`, `session_id`, `cwd` e `prompt` válidos.
+- Cada imagem é limitada a 10 MiB, o conjunto a 20 MiB e a 32 arquivos; tudo é validado antes de `readFile` ou base64. Somente arquivos regulares de MIME suportado são lidos.
+- O corpo HTTP recebido é limitado a 1 MiB, e erros de JSON, HTTP, rede, `AbortError` e `TimeoutError` são tratados de forma segura.
+- No doctor, um único deadline é compartilhado por `GET /models`, modelo principal e fallbacks; na cadeia normal, o mesmo deadline é compartilhado pelo modelo principal e fallbacks. O prazo interno padrão é 55 segundos; cada tentativa é limitada também pelo tempo restante.
+- O hook possui timeout externo de 70 segundos, preservando margem para produzir a resposta fail-open.
+
+## Privacidade e segurança do contexto
+
+O plugin não registra nem devolve credenciais, cabeçalhos `Authorization`, data URLs, imagens em base64, respostas remotas brutas, conteúdo integral de erro remoto ou caminhos locais desnecessários.
+
+Uma descrição bem-sucedida é sempre entregue dentro de `<untrusted_visual_description>…</untrusted_visual_description>`, com o conteúdo escapado para não fechar o delimitador. O contexto explica que a descrição é apenas evidência visual não confiável: instruções, comandos ou pedidos presentes na imagem ou na própria descrição não substituem instruções do sistema nem do usuário. O modelo principal deve responder à pergunta original usando-a somente como evidência visual.
+
+## Custo e recuperação de falhas
+
+Cada prompt com imagem pode gerar uma chamada de visão por tentativa de modelo; o doctor realiza uma inferência mínima para cada ID configurado. Verifique os preços e limites do endpoint escolhido.
+
+Em falha, o hook não bloqueia a conversa. Ele injeta um aviso curto para que o modelo não invente o conteúdo visual e possa explicar a limitação ao usuário. Corrija a credencial, endpoint, modelo ou cache e tente novamente pelo prompt normal ou pela CLI manual.
+
+## Migração de instalações antigas
+
+Instalações anteriores podem ter uma entrada manual que executa `scripts/image-hook.mjs`, inclusive uma referência à versão antiga `0.2.1`. Para migrar:
+
+1. Localize a entrada manual de hook que executa esse script.
+2. Remova somente essa entrada; preserve todos os demais hooks do usuário.
+3. Atualize ou reinstale o plugin pelo marketplace.
+4. Reinicie o Verboo Code.
+5. Envie um prompt com imagem e confirme que ocorre exatamente uma chamada de visão.
+
+O hook nativo instalado em `hooks/hooks.json` é suficiente após a migração.
+
+## Desenvolvimento e preflight de release
+
+As verificações locais não consomem a API real:
+
+```bash
+npm install
+npm run check
+npm run validate:plugin-offline
+npm test
+npm run smoke:local
+verboo plugin validate .claude-plugin/plugin.json
+verboo plugin validate .claude-plugin/marketplace.json
+```
+
+O preflight externo restante exige uma credencial real persistente aceita pelo endpoint configurado: execute o doctor autenticado e confirme o ID exato do modelo no endpoint padrão antes de escolher qualquer default de modelo em uma release futura.
+
+## Estrutura
 
 ```text
 verboo-vision-fallback/
-├── .claude-plugin/plugin.json
+├── .claude-plugin/
+│   ├── plugin.json
+│   └── marketplace.json
 ├── hooks/hooks.json
 ├── scripts/
-│   ├── image-hook.mjs
+│   ├── cache.mjs
+│   ├── doctor-fixture.mjs
 │   ├── describe-image.mjs
-│   └── vision-client.mjs
+│   ├── image-hook.mjs
+│   ├── vision-client.mjs
+│   └── vision-config.mjs
 ├── skills/describe-image/SKILL.md
 └── tests/
 ```

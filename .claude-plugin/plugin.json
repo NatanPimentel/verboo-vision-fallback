@@ -1,10 +1,63 @@
 {
   "name": "verboo-vision-fallback",
-  "version": "0.2.2",
-  "description": "Fallback de visão para modelos de texto no Verboo Code. Processa imagens automaticamente via qwen3.6-27b, com fallback para kimi-k2.7, e injeta a descrição no contexto do modelo principal. Requer registro manual do hook UserPromptSubmit em ~/.verboo/settings.json.",
+  "version": "0.3.0",
+  "description": "Fallback de visão configurável para modelos de texto no Verboo Code 0.12.0+.",
   "author": {
-    "name": "Natan Pimentel"
+    "name": "Natan Pimentel",
+    "url": "https://github.com/NatanPimentel"
   },
+  "homepage": "https://github.com/NatanPimentel/verboo-vision-fallback",
+  "repository": "https://github.com/NatanPimentel/verboo-vision-fallback",
   "license": "MIT",
-  "keywords": ["vision", "image", "fallback", "multimodal", "qwen", "kimi"]
+  "keywords": ["vision", "image", "fallback", "multimodal", "openai-compatible"],
+  "userConfig": {
+    "api_key": {
+      "type": "string",
+      "title": "Vision router API key",
+      "description": "Credencial persistente aceita pelo endpoint de visão. É armazenada como opção sensível; VISION_API_KEY tem precedência.",
+      "sensitive": true
+    },
+    "model": {
+      "type": "string",
+      "title": "Primary vision model",
+      "description": "ID canônico do modelo principal que aceita imagens no endpoint configurado.",
+      "required": true
+    },
+    "fallback_models": {
+      "type": "string",
+      "title": "Fallback vision models",
+      "description": "IDs alternativos separados por espaço ou vírgula, tentados na ordem informada.",
+      "default": ""
+    },
+    "base_url": {
+      "type": "string",
+      "title": "Vision router base URL",
+      "description": "URL base do endpoint OpenAI-compatible do router.",
+      "default": "https://code.verboo.ai/router/v1"
+    },
+    "timeout_ms": {
+      "type": "number",
+      "title": "Per-model timeout",
+      "description": "Tempo máximo de cada tentativa de modelo, em milissegundos.",
+      "default": 30000,
+      "min": 1,
+      "max": 55000
+    },
+    "total_timeout_ms": {
+      "type": "number",
+      "title": "Total vision timeout",
+      "description": "Prazo máximo de toda a cadeia de modelos, em milissegundos.",
+      "default": 55000,
+      "min": 1,
+      "max": 55000
+    },
+    "max_tokens": {
+      "type": "number",
+      "title": "Maximum description tokens",
+      "description": "Limite de tokens da descrição visual retornada.",
+      "default": 1024,
+      "min": 1,
+      "max": 32768
+    }
+  }
 }
