@@ -14,3 +14,6 @@ desktop.ini
 *.test.png
 *.test.jpg
 test-output/
+
+# Local environment / credentials
+.env

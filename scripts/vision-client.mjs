@@ -274,12 +274,12 @@ function sanitizeDescription(description, apiKey) {
   return safe
 }
 
-export function configuredApiKey(env = process.env) {
-  return resolveVisionConfig(env).apiKey
+export async function configuredApiKey(env = process.env, options = {}) {
+  return (await resolveVisionConfig(env, options)).apiKey
 }
 
-export function configuredModels(env = process.env) {
-  return resolveVisionConfig(env).models
+export async function configuredModels(env = process.env, options = {}) {
+  return (await resolveVisionConfig(env, options)).models
 }
 
 /**
@@ -291,11 +291,13 @@ async function describePreparedImages({
   imageBlocks,
   question,
   env = process.env,
-  config = configFromEnv(env),
-  models = config.models,
+  config,
+  models,
   deadlineAt,
   fetchImpl = fetch,
 }) {
+  if (!config) config = await configFromEnv(env)
+  if (!models) models = config.models
   assertConfig(config)
   const uniqueModels = [...new Set(models.filter(model => typeof model === 'string' && model.trim() !== ''))]
   if (uniqueModels.length === 0) throw clientError('config')
@@ -362,11 +364,13 @@ export async function describeImages({
   imagePaths,
   question,
   env = process.env,
-  config = configFromEnv(env),
-  models = config.models,
+  config,
+  models,
   deadlineAt,
   fetchImpl = fetch,
 }) {
+  if (!config) config = await configFromEnv(env)
+  if (!models) models = config.models
   assertConfig(config)
   const effectiveDeadline = deadlineAt ?? Date.now() + config.totalTimeoutMs
   if (remainingMs(effectiveDeadline) <= 0) throw clientError('total-timeout')
@@ -384,10 +388,11 @@ export async function describeImages({
 
 export async function listModels({
   env = process.env,
-  config = configFromEnv(env),
+  config,
   deadlineAt,
   fetchImpl = fetch,
 }) {
+  if (!config) config = await configFromEnv(env)
   assertConfig(config)
   const effectiveDeadline = deadlineAt ?? Date.now() + config.totalTimeoutMs
   const body = await requestJson({
@@ -439,7 +444,7 @@ export function canonicalizeConfiguredModels(configuredModels, availableIds) {
  * availability and proves that each one accepts the fixture image.
  */
 export async function runDoctor({ env = process.env, fetchImpl = fetch } = {}) {
-  const config = configFromEnv(env)
+  const config = await configFromEnv(env)
   assertConfig(config)
   const deadlineAt = Date.now() + config.totalTimeoutMs
   const availableIds = await listModels({ config, deadlineAt, fetchImpl })

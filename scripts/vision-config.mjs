@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -5,6 +6,7 @@ import { join, resolve } from 'node:path'
 // the OpenAI-compatible transport bounded when the user has configured a
 // credential and a model.
 export const DEFAULT_BASE_URL = 'https://code.verboo.ai/router/v1'
+export const DEFAULT_MODEL = 'qwen3.6-27b'
 export const DEFAULT_TIMEOUT_MS = 30_000
 export const DEFAULT_TOTAL_TIMEOUT_MS = 55_000
 export const DEFAULT_MAX_TOKENS = 1_024
@@ -35,6 +37,41 @@ function optionValue(env, visionName, pluginName, fallback = '') {
   if (nonBlank(plugin)) return plugin
 
   return fallback
+}
+
+/**
+ * Read the Verboo router credential from the local credential files used by
+ * the Verboo CLI (a fork of Claude Code). The key is currently stored in the
+ * legacy opencode.json layout, so we keep those paths for compatibility and
+ * also look at ~/.verboo/auth.json for future releases.
+ */
+async function loadVerbooConfig({ cwd, home = homedir(), directHome = false } = {}) {
+  const candidates = directHome
+    ? [join(home, 'opencode.json'), join(home, 'auth.json')]
+    : [
+        cwd && join(cwd, 'opencode.json'),
+        join(home, '.config', 'opencode', 'opencode.json'),
+        join(home, '.verboo', 'opencode.json'),
+        join(home, '.verboo', 'auth.json'),
+      ].filter(Boolean)
+
+  for (const candidate of candidates) {
+    try {
+      const config = JSON.parse(await readFile(candidate, 'utf8'))
+      const verboo = config.provider?.verboo
+      const apiKey = typeof verboo?.options?.apiKey === 'string'
+        ? verboo.options.apiKey.trim()
+        : ''
+      const baseURL = typeof verboo?.options?.baseURL === 'string'
+        ? verboo.options.baseURL.trim()
+        : ''
+      if (apiKey) return { apiKey, baseURL }
+    } catch {
+      // File missing or invalid: try next candidate.
+    }
+  }
+
+  return { apiKey: '', baseURL: '' }
 }
 
 /**
@@ -122,10 +159,23 @@ export function parseBaseUrl(value) {
   }
 }
 
-export function resolveVisionConfig(env = process.env) {
+export async function resolveVisionConfig(env = process.env, { cwd, home } = {}) {
+  const explicitVerbooHome =
+    asString(env.VISION_VERBOO_CREDENTIALS_HOME) ||
+    asString(env.VISION_OPENCODE_HOME)
+  const verbooCredsHome = explicitVerbooHome || home
+  const verbooCreds = explicitVerbooHome
+    ? await loadVerbooConfig({ cwd, home: verbooCredsHome, directHome: true })
+    : await loadVerbooConfig({ cwd, home: verbooCredsHome })
+
   const issues = []
   const base = parseBaseUrl(
-    optionValue(env, 'VISION_BASE_URL', 'BASE_URL', DEFAULT_BASE_URL),
+    optionValue(
+      env,
+      'VISION_BASE_URL',
+      'BASE_URL',
+      verbooCreds.baseURL || DEFAULT_BASE_URL,
+    ),
   )
   if (!base.ok) issues.push(base.reason)
 
@@ -159,14 +209,22 @@ export function resolveVisionConfig(env = process.env) {
     'max_tokens',
   )
 
-  const primaryModel = optionValue(env, 'VISION_MODEL', 'MODEL', '')
+  const hasExplicitModel =
+    nonBlank(env.VISION_MODEL) || nonBlank(env.CLAUDE_PLUGIN_OPTION_MODEL)
+  const primaryModel = optionValue(
+    env,
+    'VISION_MODEL',
+    'MODEL',
+    verbooCreds.apiKey && !hasExplicitModel ? DEFAULT_MODEL : '',
+  )
   const fallbackModels = parseModelList(
     optionValue(env, 'VISION_FALLBACK_MODELS', 'FALLBACK_MODELS', ''),
   )
   const models = [primaryModel, ...fallbackModels]
     .filter(nonBlank)
     .filter((model, index, all) => all.indexOf(model) === index)
-  const apiKey = optionValue(env, 'VISION_API_KEY', 'API_KEY', '').trim() || null
+  const apiKey =
+    optionValue(env, 'VISION_API_KEY', 'API_KEY', verbooCreds.apiKey).trim() || null
 
   return {
     apiKey,
@@ -193,9 +251,9 @@ export function validateVisionConfig(
   return [...new Set(issues)]
 }
 
-export function configFromEnv(env = process.env) {
+export async function configFromEnv(env = process.env, options = {}) {
   return {
-    ...resolveVisionConfig(env),
+    ...(await resolveVisionConfig(env, options)),
     configRoot: resolveConfigRoot(env),
   }
 }

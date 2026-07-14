@@ -109,7 +109,9 @@ export async function runNodeScript(script, { args = [], cwd, env = {}, input } 
 
 export function visionEnv(verbooHome, baseUrl, overrides = {}) {
   return {
-    ...(verbooHome ? { VERBOO_CONFIG_DIR: verbooHome } : {}),
+    ...(verbooHome
+      ? { VERBOO_CONFIG_DIR: verbooHome, VISION_VERBOO_CREDENTIALS_HOME: verbooHome }
+      : {}),
     VISION_API_KEY: 'test-key',
     VISION_BASE_URL: baseUrl,
     VISION_MODEL: 'test/primary-model',

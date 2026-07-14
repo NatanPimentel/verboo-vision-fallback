@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import { truncate, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, truncate, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import {
@@ -32,7 +33,8 @@ function expectErrorCode(code) {
 
 async function captureDoctorFailure({ handler, envOverrides = {}, fetchImpl } = {}) {
   const server = handler ? await startVisionServer(handler) : null
-  const env = visionEnv(undefined, server?.baseUrl ?? 'http://127.0.0.1:9/v1', {
+  const home = await mkdtemp(join(tmpdir(), 'doctor-'))
+  const env = visionEnv(home, server?.baseUrl ?? 'http://127.0.0.1:9/v1', {
     VISION_MODEL: 'ultra/doctor-primary',
     ...envOverrides,
   })
@@ -47,8 +49,9 @@ async function captureDoctorFailure({ handler, envOverrides = {}, fetchImpl } = 
   }
 }
 
-test('prioriza VISION_* sobre opções do plugin e aceita api_key do plugin como fallback', () => {
-  const config = resolveVisionConfig({
+test('prioriza VISION_* sobre opções do plugin e aceita api_key do plugin como fallback', async t => {
+  const home = await createTempDirectory(t)
+  const config = await resolveVisionConfig({
     VISION_API_KEY: 'vision-key',
     CLAUDE_PLUGIN_OPTION_API_KEY: 'plugin-key',
     VISION_BASE_URL: 'https://vision.example.test/router/v1',
@@ -63,7 +66,7 @@ test('prioriza VISION_* sobre opções do plugin e aceita api_key do plugin como
     CLAUDE_PLUGIN_OPTION_TOTAL_TIMEOUT_MS: '999',
     VISION_MAX_TOKENS: '77',
     CLAUDE_PLUGIN_OPTION_MAX_TOKENS: '88',
-  })
+  }, { home })
 
   assert.equal(config.apiKey, 'vision-key')
   assert.equal(config.baseUrl, 'https://vision.example.test/router/v1')
@@ -74,16 +77,41 @@ test('prioriza VISION_* sobre opções do plugin e aceita api_key do plugin como
   assert.equal(config.maxTokens, 77)
 
   assert.equal(
-    configuredApiKey({
+    await configuredApiKey({
       VISION_API_KEY: ' ',
       CLAUDE_PLUGIN_OPTION_API_KEY: 'plugin-key',
     }),
     'plugin-key',
   )
-  assert.equal(configuredApiKey({}), null)
+  assert.equal(await configuredApiKey({}, { home }), null)
 })
 
-test('preserva IDs de modelo opacos, a ordem e deduplica apenas valores idênticos', () => {
+test('lê credencial do router Verboo a partir de opencode.json', async t => {
+  const home = await createTempDirectory(t)
+  const opencodePath = join(home, '.config', 'opencode')
+  await mkdir(opencodePath, { recursive: true })
+  await writeFile(
+    join(opencodePath, 'opencode.json'),
+    JSON.stringify({
+      provider: {
+        verboo: {
+          options: {
+            apiKey: 'vbk_test_123',
+            baseURL: 'https://router.verboo.test/v1',
+          },
+        },
+      },
+    }),
+  )
+
+  const config = await resolveVisionConfig({}, { home })
+  assert.equal(config.apiKey, 'vbk_test_123')
+  assert.equal(config.baseUrl, 'https://router.verboo.test/v1')
+  assert.equal(config.primaryModel, 'qwen3.6-27b')
+})
+
+test('preserva IDs de modelo opacos, a ordem e deduplica apenas valores idênticos', async t => {
+  const home = await createTempDirectory(t)
   const primary = 'ultra/early-adopters/Kimi-K2.7'
   const fallback = 'vendor/Prévia-ß'
   const caseVariant = 'VENDOR/Prévia-ß'
@@ -92,9 +120,10 @@ test('preserva IDs de modelo opacos, a ordem e deduplica apenas valores idêntic
     VISION_FALLBACK_MODELS: `${fallback} ${primary} ${fallback} ${caseVariant}`,
   }
 
-  assert.deepEqual(configuredModels(env), [primary, fallback, caseVariant])
-  assert.equal(configuredModels(env)[0], primary)
-  assert.equal(configuredModels(env)[1], fallback)
+  const models = await configuredModels(env, { home })
+  assert.deepEqual(models, [primary, fallback, caseVariant])
+  assert.equal(models[0], primary)
+  assert.equal(models[1], fallback)
 })
 
 test('envia IDs configurados byte a byte, sem remover prefixos, e preserva fallback', async t => {

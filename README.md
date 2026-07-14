@@ -86,6 +86,19 @@ O cache automático é sempre resolvido em:
 
 O hook valida sessão e ID numérico, impede traversal, caminhos absolutos e escapes por symlink, verifica containment após `resolve` e `realpath`, e aceita somente arquivos regulares de MIME suportado. Arquivos removidos durante a leitura são tratados como uma falha aberta, sem derrubar o turno.
 
+## Configuração
+
+O plugin resolve a credencial e o endpoint nesta ordem:
+
+1. Variáveis de ambiente `VISION_*` (ou `CLAUDE_PLUGIN_OPTION_*` injetadas pela UI do plugin).
+2. Arquivos `opencode.json` da assinatura Verboo:
+   - `./opencode.json` (diretório do projeto)
+   - `~/.config/opencode/opencode.json`
+   - `~/.verboo/opencode.json`
+3. Padrões do router Verboo: `https://code.verboo.ai/router/v1` e `qwen3.6-27b`.
+
+Se você tem uma assinatura Verboo ativa, o plugin funciona automaticamente assim que o `opencode.json` estiver presente. Para usar outro provedor OpenAI-compatible, configure `VISION_API_KEY`, `VISION_BASE_URL` e `VISION_MODEL` (ou as opções correspondentes na UI).
+
 ## Uso manual
 
 O uso normal é automático. A CLI serve para uma nova tentativa explícita ou recuperação:
@@ -137,6 +150,8 @@ Instalações anteriores podem ter uma entrada manual que executa `scripts/image
 1. Localize a entrada manual de hook que executa esse script.
 2. Remova somente essa entrada; preserve todos os demais hooks do usuário.
 3. Atualize ou reinstale o plugin pelo marketplace.
+
+A partir desta versão, a credencial da assinatura Verboo é lida automaticamente de `~/.config/opencode/opencode.json` e `~/.verboo/opencode.json`, restaurando o comportamento de versões anteriores.
 4. Reinicie o Verboo Code.
 5. Envie um prompt com imagem e confirme que ocorre exatamente uma chamada de visão.
 
