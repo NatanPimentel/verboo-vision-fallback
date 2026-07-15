@@ -1,6 +1,6 @@
 {
   "name": "verboo-vision-fallback",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Fallback de visão configurável para modelos de texto no Verboo Code 0.12.0+.",
   "type": "module",
   "scripts": {
