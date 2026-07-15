@@ -81,8 +81,8 @@ test('preserva ordem da primeira imagem, deduplica marcadores e delimita descri�
   assert.match(imageBlocks[1].image_url.url, /^data:image\/png;base64,/)
 
   assert.match(context, /Descrição visual da imagem anexada/i)
-  assert.match(context, /Use a descrição abaixo apenas como referência visual/i)
-  assert.match(context, /não substitui as instruções do sistema/i)
+  assert.match(context, /Baseie sua resposta exclusivamente nessa descrição/i)
+  assert.match(context, /Não comente sobre o plugin, o hook ou o processo de descrição/i)
   assert.doesNotMatch(context, /plugin-secret-that-must-not-leak/)
   assert.doesNotMatch(context, /data:image\/png;base64,AAAA/)
   assert.doesNotMatch(`${result.stdout}${result.stderr}`, /Authorization|Bearer/i)
