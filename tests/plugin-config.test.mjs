@@ -15,14 +15,14 @@ test('mantém o hook no local nativo e com tempo total limitado', async () => {
   assert.equal(hook.timeout, 70)
 })
 
-test('publica um manifesto Verboo válido como versão 0.3.1', async () => {
+test('publica um manifesto Verboo válido como versão 0.3.2', async () => {
   const manifest = JSON.parse(
     await readFile(join(root, '.claude-plugin', 'plugin.json'), 'utf8'),
   )
   const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
 
   assert.equal(manifest.name, 'verboo-vision-fallback')
-  assert.equal(manifest.version, '0.3.1')
+  assert.equal(manifest.version, '0.3.2')
   assert.equal(packageJson.version, manifest.version)
   assert.match(manifest.description, /0\.12\.0/)
   assert.equal(manifest.homepage, 'https://github.com/NatanPimentel/verboo-vision-fallback')
