@@ -389,3 +389,44 @@ test('aplica limite individual de imagem antes de tentar a rede e continua fail-
   assert.match(context, /imagem excede o limite permitido/i)
   assert.doesNotMatch(context, new RegExp(sessionCache.replace(/\\/g, '\\\\')))
 })
+
+test('prompt curto delega para DEFAULT_QUESTION e prompt longo preserva a pergunta', async t => {
+  const sessionId = 'session-question-threshold'
+  const { configRoot } = await createSessionCache(t, sessionId, ['1.png'])
+
+  for (const { prompt, expectedQuestion } of [
+    { prompt: 'leia imagem [Image #1]', expectedQuestion: undefined },
+    { prompt: '[Image #1]', expectedQuestion: undefined },
+    { prompt: 'descreva a imagem [Image #1]', expectedQuestion: undefined },
+    { prompt: 'descreva esta imagem [Image #1]', expectedQuestion: 'descreva esta imagem' },
+  ]) {
+    const server = await startVisionServer(async (request, response) => {
+      const body = await readRequestJson(request)
+      response.writeHead(200, { 'content-type': 'application/json' })
+      response.end(
+        JSON.stringify({
+          choices: [{ message: { content: `Q:${body.messages[0].content[0].text}` } }],
+        }),
+      )
+    })
+    t.after(server.close)
+
+    const result = await runHook(
+      {
+        hook_event_name: 'UserPromptSubmit',
+        session_id: sessionId,
+        cwd: 'D:\\Projetos\\exemplo',
+        prompt,
+      },
+      visionEnv(configRoot, server.baseUrl, { VISION_API_KEY: 'test-key' }),
+    )
+
+    const context = parseHookOutput(result)
+    if (expectedQuestion === undefined) {
+      assert.doesNotMatch(context, /Q:leia imagem|Q:descreva a imagem/)
+      assert.match(context, /Q:Descreva esta imagem de forma curta e objetiva/)
+    } else {
+      assert.match(context, new RegExp(`Q:${expectedQuestion}`))
+    }
+  }
+})

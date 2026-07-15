@@ -175,9 +175,11 @@ async function main() {
   }
 
   const imagePaths = resolvedImages.map(image => image.imagePath)
-  const question =
-    payload.prompt.replace(/\[Image #\d+\]/gi, '').trim() ||
-    'Descreva detalhadamente esta imagem.'
+  const extractedQuestion = payload.prompt.replace(/\[Image #\d+\]/gi, '').trim()
+  // Short or generic prompts (e.g. "leia imagem") make qwen return a placeholder
+  // like "[RESPONSE] <uuid>". Delegate to the vision-client default question in
+  // those cases so the model always produces a real description.
+  const question = extractedQuestion.length >= 20 ? extractedQuestion : undefined
 
   try {
     const result = await describeImages({
