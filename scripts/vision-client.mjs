@@ -18,7 +18,7 @@ export const MAX_TOTAL_IMAGE_BYTES = 20 * 1024 * 1024
 export const MAX_IMAGE_COUNT = 32
 export const MAX_RESPONSE_BYTES = 1024 * 1024
 
-const DEFAULT_QUESTION = 'Descreva detalhadamente esta imagem.'
+const DEFAULT_QUESTION = 'Descreva esta imagem de forma curta e objetiva, em no máximo 3 parágrafos. Foque no conteúdo visual principal e em textos legíveis.'
 
 export class VisionClientError extends Error {
   constructor(code, message = 'A solicitação de visão falhou.', options = {}) {

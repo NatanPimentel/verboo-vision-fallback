@@ -60,7 +60,7 @@ test('CLI resolve nome de arquivo no diretório atual e usa pergunta opcional pa
   const result = await runDescribe(['captura.png'], visionEnv(undefined, server.baseUrl), directory)
 
   assert.equal(result.exitCode, 0)
-  assert.equal(question, 'Descreva detalhadamente esta imagem.')
+  assert.equal(question, 'Descreva esta imagem de forma curta e objetiva, em no máximo 3 parágrafos. Foque no conteúdo visual principal e em textos legíveis.')
   assert.match(result.stdout, /Imagem pelo nome\./)
 })
 
