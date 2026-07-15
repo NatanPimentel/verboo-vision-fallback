@@ -63,7 +63,7 @@ async function realPathInside(parent, candidate) {
   }
 }
 
-export async function findCachedImage(cacheRoot, sessionId, imageId) {
+async function findCachedImageOnce(cacheRoot, sessionId, imageId) {
   const normalizedSessionId = normalizeSessionId(sessionId)
   const normalizedId = normalizeImageId(imageId)
   if (!normalizedSessionId || !normalizedId) return null
@@ -107,6 +107,20 @@ export async function findCachedImage(cacheRoot, sessionId, imageId) {
     return null
   }
 
+  return null
+}
+
+const CACHE_RETRY_DELAY_MS = 50
+const CACHE_RETRY_MAX_ATTEMPTS = 10
+
+export async function findCachedImage(cacheRoot, sessionId, imageId) {
+  let result = await findCachedImageOnce(cacheRoot, sessionId, imageId)
+  if (result) return result
+  for (let attempt = 1; attempt < CACHE_RETRY_MAX_ATTEMPTS; attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, CACHE_RETRY_DELAY_MS))
+    result = await findCachedImageOnce(cacheRoot, sessionId, imageId)
+    if (result) return result
+  }
   return null
 }
 
